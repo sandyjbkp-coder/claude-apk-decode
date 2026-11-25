@@ -1,0 +1,53 @@
+{
+  "schema": "log-schema",
+  "version": "1.0.0",
+  "description": "JSONL log schema for all agent monitoring events. Each line is a self-contained JSON object.",
+  "fields": [
+    {"name": "timestamp", "type": "string", "format": "ISO8601_UTC", "required": true, "description": "Event timestamp in UTC"},
+    {"name": "session_id", "type": "string", "required": true, "description": "Current session identifier"},
+    {"name": "task_id", "type": "string", "required": true, "description": "Current task identifier"},
+    {"name": "agent_id", "type": "string", "required": true, "description": "Agent identifier emitting the event"},
+    {"name": "event_type", "type": "string", "required": true, "description": "Event type (session_start, memory_load, command_executed, error_captured, retry_attempt, fix_applied, memory_write, api_call, rate_limit_event, task_completed)"},
+    {"name": "command", "type": "string", "required": false, "description": "Command that was executed"},
+    {"name": "error", "type": "string", "required": false, "description": "Error message or stack trace"},
+    {"name": "retry_count", "type": "integer", "required": false, "description": "Number of retries attempted"},
+    {"name": "memory_used", "type": "string", "required": false, "description": "Memory key(s) read/retrieved"},
+    {"name": "memory_written", "type": "string", "required": false, "description": "Memory key(s) written"},
+    {"name": "api_call", "type": "string", "required": false, "description": "API endpoint called"},
+    {"name": "rate_limit", "type": "boolean", "required": false, "description": "Whether a rate limit was hit"},
+    {"name": "outcome", "type": "string", "enum": ["success", "failure", "retry", "error", "skipped"], "required": true, "description": "Outcome of the event"},
+    {"name": "latency", "type": "integer", "required": false, "description": "Event latency in milliseconds"},
+    {"name": "cost", "type": "number", "required": false, "description": "Estimated cost of the operation"}
+  ],
+  "redaction_rules": [
+    {"field": "command", "pattern": "(password|passwd|pwd|token|secret|key|api_key|apikey)\\s*[:=]\\s*[^\\s]+", "replacement": "[REDACTED]"},
+    {"field": "error", "pattern": "(password|passwd|pwd|token|secret|key|api_key|apikey)\\s*[:=]\\s*[^\\s]+", "replacement": "[REDACTED]"},
+    {"field": "stdout", "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b", "replacement": "[REDACTED_SSN]"},
+    {"field": "stdout", "pattern": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b", "replacement": "[REDACTED_EMAIL]"},
+    {"field": "stderr", "pattern": "(password|passwd|pwd|token|secret|key|api_key|apikey)\\s*[:=]\\s*[^\\s]+", "replacement": "[REDACTED]"}
+  ],
+  "format": "JSONL (one JSON object per line)",
+  "rotation": {
+    "max_file_size_mb": 10,
+    "retention_days": 30,
+    "no_secrets": true,
+    "redact_sensitive_data": true
+  },
+  "example": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "session_id": "sess_abc123",
+    "task_id": "task_def456",
+    "agent_id": "agent_harness",
+    "event_type": "command_executed",
+    "command": "su -c 'id'",
+    "error": null,
+    "retry_count": 0,
+    "memory_used": null,
+    "memory_written": null,
+    "api_call": null,
+    "rate_limit": false,
+    "outcome": "success",
+    "latency": 145,
+    "cost": 0.0
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-11-25T22:15:00Z",
+  "agent": {
+    "name": "Android Self-Healing Autonomous Agent",
+    "version": "1.0.0",
+    "platform": "Rooted Android (KernelSU)"
+  },
+  "memory_files": {
+    "core_rules": {
+      "path": "agent/skills/AGENT_RULES.md",
+      "description": "Agent identity, safety policy, operating principles"
+    },
+    "failure_patterns": {
+      "path": "agent/memory/knowledge/failure-patterns.md",
+      "description": "6 failure patterns across 12 classifications (FP-001 to FP-006)"
+    },
+    "retry_policy": {
+      "path": "agent/memory/knowledge/retry-policy.md",
+      "description": "Retry budgets, exponential backoff, header-aware delay parsing"
+    },
+    "repair_playbook": {
+      "path": "agent/memory/knowledge/command-repair-playbook.md",
+      "description": "6 verified fixes (FIX-001 to FIX-006)"
+    },
+    "session_init": {
+      "path": "agent/memory/autostart/session-init.md",
+      "description": "9 mandatory load steps at session start"
+    },
+    "retrieval_guard": {
+      "path": "agent/memory/autostart/retrieval-guard.md",
+      "description": "Pre-command memory search rules"
+    },
+    "failure_guard": {
+      "path": "agent/memory/autostart/failure-guard.md",
+      "description": "Post-failure capture, diagnosis, fix, save"
+    },
+    "command_guard": {
+      "path": "agent/memory/autostart/command-guard.md",
+      "description": "Pre-execution budget, safety, root checks"
+    },
+    "final_acceptance_test": {
+      "path": "agent/memory/autostart/final-acceptance-test.md",
+      "description": "Cross-session recall acceptance criteria"
+    },
+    "java-runtime-android": {
+      "path": "agent/memory/knowledge/java-runtime-android.md",
+      "description": "Java runtime setup findings for Android bionic libc compatibility"
+    },
+    "custom_skills": {
+      "path": "agent/skills/",
+      "description": "On-demand user skills (skill_manage/skill_view)"
+    },
+    "pdf-tools": {
+      "path": "agent/pdf-tools/",
+      "description": "PDF toolset for PDF creation, manipulation, and OCR operations"
+    }
+  },
+  "failure_patterns_index": [
+    {
+      "id": "FP-001",
+      "type": "PERMISSION",
+      "taxonomy": "T-07",
+      "fix": "FIX-001"
+    },
+    {
+      "id": "FP-002",
+      "type": "WRONG_PATH",
+      "taxonomy": "T-05",
+      "fix": "FIX-002"
+    },
+    {
+      "id": "FP-003",
+      "type": "WRONG_SYNTAX",
+      "taxonomy": "T-06",
+      "fix": "FIX-003"
+    },
+    {
+      "id": "FP-004",
+      "type": "NETWORK",
+      "taxonomy": "T-09",
+      "fix": "FIX-004"
+    },
+    {
+      "id": "FP-005",
+      "type": "RATE_LIMIT",
+      "taxonomy": "T-08",
+      "fix": "FIX-005"
+    },
+    {
+      "id": "FP-006",
+      "type": "TIMEOUT",
+      "taxonomy": "T-10",
+      "fix": "FIX-006"
+    }
+  ],
+  "repair_fixes_index": [
+    {
+      "id": "FIX-001",
+      "pattern": "FP-001",
+      "type": "PERMISSION",
+      "invasive": false
+    },
+    {
+      "id": "FIX-002",
+      "pattern": "FP-002",
+      "type": "WRONG_PATH",
+      "invasive": false
+    },
+    {
+      "id": "FIX-003",
+      "pattern": "FP-003",
+      "type": "WRONG_SYNTAX",
+      "invasive": false
+    },
+    {
+      "id": "FIX-004",
+      "pattern": "FP-004",
+      "type": "NETWORK",
+      "invasive": false
+    },
+    {
+      "id": "FIX-005",
+      "pattern": "FP-005",
+      "type": "RATE_LIMIT",
+      "invasive": false
+    },
+    {
+      "id": "FIX-006",
+      "pattern": "FP-006",
+      "type": "TIMEOUT",
+      "invasive": false
+    }
+  ],
+  "retry_budget": {
+    "per_command_signature": 3,
+    "per_session": 10,
+    "per_command_family": 3,
+    "per_api_endpoint": 2
+  },
+  "classifications": [
+    "TRANSIENT",
+    "PERMANENT",
+    "CONFIGURATION",
+    "MISSING_DEPENDENCY",
+    "WRONG_PATH",
+    "WRONG_SYNTAX",
+    "PERMISSION",
+    "RATE_LIMIT",
+    "NETWORK",
+    "TIMEOUT",
+    "VALIDATION",
+    "UNKNOWN"
+  ],
+  "sessions": [],
+  "last_updated": "2026-11-25T22:15:00Z"
+}

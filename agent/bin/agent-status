@@ -1,0 +1,111 @@
+#!/bin/bash
+# agent-status - System status checker
+# Part of Android Self-Healing Autonomous Agent (v1.0.0)
+#
+# Usage: agent-status
+#
+# Reports on agent health: memory files, recent logs, retry stats,
+# root availability, and monitoring state.
+
+set -euo pipefail
+
+AGENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MEMORY_DIR="$AGENT_DIR/memory"
+KNOWLEDGE_DIR="$MEMORY_DIR/knowledge"
+LOGS_DIR="$AGENT_DIR/logs"
+MONITORING_DIR="$AGENT_DIR/monitoring"
+SESSION_FILE="$MEMORY_DIR/sessions/current-session.json"
+
+echo "=== Android Self-Healing Agent Status ==="
+echo "Version: 1.0.0"
+echo "Agent Dir: $AGENT_DIR"
+echo ""
+
+# --- Root / environment ---
+echo "--- Environment ---"
+if command -v su >/dev/null 2>&1; then
+    echo "Root shell (su): available"
+else
+    echo "Root shell (su): NOT available"
+fi
+if command -v python3 >/dev/null 2>&1; then
+    echo "Python3: $(python3 --version 2>&1)"
+else
+    echo "Python3: not found"
+fi
+echo ""
+
+# --- Memory files ---
+echo "--- Memory System ---"
+for f in \
+    "$KNOWLEDGE_DIR/failure-patterns.md" \
+    "$KNOWLEDGE_DIR/retry-policy.md" \
+    "$KNOWLEDGE_DIR/command-repair-playbook.md" \
+    "$MEMORY_DIR/autostart/session-init.md" \
+    "$MEMORY_DIR/autostart/retrieval-guard.md" \
+    "$MEMORY_DIR/autostart/failure-guard.md" \
+    "$MEMORY_DIR/autostart/command-guard.md" \
+    "$MEMORY_DIR/autostart/final-acceptance-test.md" \
+    "$MEMORY_DIR/indexes/memory-index.json"; do
+    if [ -f "$f" ]; then
+        echo "  [OK] $(basename "$f")"
+    else
+        echo "  [MISSING] $(basename "$f")"
+    fi
+done
+echo ""
+
+# --- Session ---
+echo "--- Current Session ---"
+if [ -f "$SESSION_FILE" ]; then
+    cat "$SESSION_FILE"
+else
+    echo "No active session"
+fi
+echo ""
+
+# --- Logs ---
+echo "--- Recent Logs ---"
+if [ -d "$LOGS_DIR" ]; then
+    for logfile in "$LOGS_DIR"/*.log; do
+        if [ -f "$logfile" ]; then
+            lines=$(wc -l < "$logfile" 2>/dev/null || echo 0)
+            echo "  $(basename "$logfile"): $lines lines"
+        fi
+    done
+else
+    echo "No logs directory"
+fi
+echo ""
+
+# --- Monitoring ---
+echo "--- Monitoring ---"
+for f in \
+    "$MONITORING_DIR/metrics.md" \
+    "$MONITORING_DIR/logs.md" \
+    "$MONITORING_DIR/alerts.md" \
+    "$MONITORING_DIR/dashboards.md" \
+    "$MONITORING_DIR/improvement-loop.md"; do
+    if [ -f "$f" ]; then
+        echo "  [OK] $(basename "$f")"
+    else
+        echo "  [MISSING] $(basename "$f")"
+    fi
+done
+echo ""
+
+# --- Live schemas ---
+echo "--- Live Schemas ---"
+for f in \
+    "$MONITORING_DIR/live/log-schema.json" \
+    "$MONITORING_DIR/live/metric-schema.json" \
+    "$MONITORING_DIR/live/alert-schema.json"; do
+    if [ -f "$f" ]; then
+        echo "  [OK] $(basename "$f")"
+    else
+        echo "  [MISSING] $(basename "$f")"
+    fi
+done
+echo ""
+
+echo "=== End Status ==="

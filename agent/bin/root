@@ -1,0 +1,44 @@
+#!/bin/bash
+# root - Root shell wrapper for KernelSU
+# Part of Android Self-Healing Autonomous Agent (v1.0.0)
+#
+# Usage: root <command>
+#
+# Provides a consistent root execution path via KernelSU/su,
+# with logging and error handling.
+
+set -euo pipefail
+
+AGENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOGS_DIR="$AGENT_DIR/logs"
+ROOT_LOG="$LOGS_DIR/root-executions.log"
+
+mkdir -p "$LOGS_DIR"
+
+log_root() {
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    printf '{"timestamp":"%s","command":"%s","exit_code":%s}\n' \
+        "$ts" "$*" "$1" >> "$ROOT_LOG"
+}
+
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <command>"
+    echo "Example: $0 'pm list packages'"
+    exit 1
+fi
+
+local_cmd="$*"
+ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "[$ts] Executing as root: $local_cmd" >&2
+
+if command -v su >/dev/null 2>&1; then
+    su -c "$local_cmd"
+    exit_code=$?
+else
+    echo "ERROR: su not available — root not accessible" >&2
+    exit_code=127
+fi
+
+log_root "$exit_code"
+exit "$exit_code"

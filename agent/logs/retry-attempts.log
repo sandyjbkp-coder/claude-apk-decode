@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-25T13:20:10Z","attempt":1,"command":"nonexistent-command-xyz","classification":"WRONG_PATH","action":"retry_planned"}
+{"timestamp":"2026-11-25T13:20:12Z","attempt":2,"command":"nonexistent-command-xyz","classification":"WRONG_PATH","action":"retry_planned"}
+{"timestamp":"2026-11-25T13:21:17Z","attempt":1,"command":"false","classification":"UNKNOWN","action":"retry_planned"}
+{"timestamp":"2026-11-25T13:21:18Z","attempt":2,"command":"false","classification":"UNKNOWN","action":"retry_planned"}

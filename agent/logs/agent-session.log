@@ -1,0 +1,99 @@
+[2026-11-25T13:19:33Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T13:19:33Z] [INFO] Command: echo hello
+[2026-11-25T13:19:33Z] [INFO] Attempt 1/3
+[2026-11-25T13:19:33Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T13:19:43Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T13:19:43Z] [INFO] Command: su -c "id" 2>&1; false
+[2026-11-25T13:19:43Z] [INFO] Attempt 1/3
+[2026-11-25T13:19:43Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T13:19:43Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T13:19:43Z] [INFO] Command: nonexistent-command-123
+[2026-11-25T13:19:43Z] [INFO] Attempt 1/3
+[2026-11-25T13:19:43Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T13:20:10Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T13:20:10Z] [INFO] Command: nonexistent-command-xyz
+[2026-11-25T13:20:10Z] [INFO] Attempt 1/3
+[2026-11-25T13:20:10Z] [WARN] Attempt 1 failed (exit 127): classified as WRONG_PATH
+[2026-11-25T13:20:10Z] [INFO] Searching memory for fix...
+[2026-11-25T13:20:10Z] [INFO] Applying fix from playbook for WRONG_PATH
+[2026-11-25T13:20:10Z] [INFO] Fix applied: playbook_match: WRONG_PATH
+[2026-11-25T13:20:11Z] [INFO] Attempt 2/3
+[2026-11-25T13:20:12Z] [WARN] Attempt 2 failed (exit 127): classified as WRONG_PATH
+[2026-11-25T13:20:12Z] [INFO] Searching memory for fix...
+[2026-11-25T13:20:12Z] [INFO] Applying fix from playbook for WRONG_PATH
+[2026-11-25T13:20:12Z] [INFO] Fix applied: playbook_match: WRONG_PATH
+[2026-11-25T13:20:14Z] [INFO] Attempt 3/3
+[2026-11-25T13:20:14Z] [ERROR] Retry budget exceeded for: nonexistent-command-xyz
+[2026-11-25T13:20:14Z] [ERROR] Command failed after 3 attempts: nonexistent-command-xyz
+[2026-11-25T13:20:14Z] [ERROR] Last error: /system/bin/sh: nonexistent-command-xyz: inaccessible or not found
+[2026-11-25T13:21:16Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T13:21:16Z] [INFO] Command: echo test
+[2026-11-25T13:21:16Z] [INFO] Attempt 1/3
+[2026-11-25T13:21:16Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T13:21:16Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T13:21:16Z] [INFO] Command: false
+[2026-11-25T13:21:16Z] [INFO] Attempt 1/3
+[2026-11-25T13:21:17Z] [WARN] Attempt 1 failed (exit 1): classified as UNKNOWN
+[2026-11-25T13:21:17Z] [INFO] Searching memory for fix...
+[2026-11-25T13:21:17Z] [INFO] Fix applied: none
+[2026-11-25T13:21:18Z] [INFO] Attempt 2/3
+[2026-11-25T13:21:18Z] [WARN] Attempt 2 failed (exit 1): classified as UNKNOWN
+[2026-11-25T13:21:18Z] [INFO] Searching memory for fix...
+[2026-11-25T13:21:18Z] [INFO] Fix applied: none
+[2026-11-25T13:21:20Z] [INFO] Attempt 3/3
+[2026-11-25T13:21:21Z] [ERROR] Retry budget exceeded for: false
+[2026-11-25T13:21:21Z] [ERROR] Command failed after 3 attempts: false
+[2026-11-25T13:21:21Z] [ERROR] Last error: 
+[2026-11-25T13:21:24Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T13:21:24Z] [INFO] Command: echo test
+[2026-11-25T13:21:24Z] [INFO] Attempt 1/3
+[2026-11-25T13:21:25Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T14:47:05Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T14:47:05Z] [INFO] Command: echo test
+[2026-11-25T14:47:05Z] [INFO] Attempt 1/3
+[2026-11-25T14:47:05Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T14:47:19Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T14:47:19Z] [INFO] Command: nonexistent-command-xyz
+[2026-11-25T14:47:19Z] [INFO] Attempt 1/3
+[2026-11-25T14:47:19Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T14:47:35Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T14:47:35Z] [INFO] Command: false
+[2026-11-25T14:47:35Z] [INFO] Attempt 1/3
+[2026-11-25T14:47:35Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T14:48:20Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T14:48:20Z] [INFO] Command: false
+[2026-11-25T14:48:20Z] [INFO] Attempt 1/3
+[2026-11-25T14:48:21Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T14:48:26Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T14:48:26Z] [INFO] Command: false
+[2026-11-25T14:48:26Z] [INFO] Attempt 1/3
+[2026-11-25T14:48:26Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T14:48:38Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T14:48:38Z] [INFO] Command: false
+[2026-11-25T14:48:38Z] [INFO] Attempt 1/3
+[2026-11-25T14:48:38Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T16:10:47Z] [INFO] === Android Self-Healing Agent (v1.0.0) ===
+[2026-11-25T16:10:47Z] [INFO] Task: test task for storage cleanup
+[2026-11-25T16:10:47Z] [INFO] Loading autostart memory: session-init.md
+[2026-11-25T16:10:47Z] [INFO] Loading failure patterns memory
+[2026-11-25T16:10:47Z] [INFO] Loading command repair playbook
+[2026-11-25T16:10:47Z] [INFO] Loading retry policy memory
+[2026-11-25T16:10:47Z] [INFO] Session initialized: 1795623047 — task: test task for storage cleanup
+[2026-11-25T16:10:47Z] [INFO] Checking known failure patterns...
+[2026-11-25T16:10:47Z] [INFO] Task plan saved to: /storage/emulated/0/Android/data/com.androidharness.app.kernelsu/files/workspace/agent/workspace/task-1795623047.md
+[2026-11-25T16:10:47Z] [INFO] Use 'agent-run <command>' to execute commands with self-healing retry
+[2026-11-25T16:10:47Z] [INFO] Use 'agent-status' to check system status
+[2026-11-25T16:11:16Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T16:11:16Z] [INFO] Command: echo hello world
+[2026-11-25T16:11:16Z] [INFO] Attempt 1/3
+[2026-11-25T16:11:16Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T16:11:24Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T16:11:24Z] [INFO] Command: su -c 'id'
+[2026-11-25T16:11:25Z] [INFO] Found matching repair in playbook
+[2026-11-25T16:11:25Z] [INFO] Memory match found — will use corrected command if available
+[2026-11-25T16:11:25Z] [INFO] Attempt 1/3
+[2026-11-25T16:11:25Z] [INFO] Command succeeded on attempt 1
+[2026-11-25T16:11:31Z] [INFO] === agent-run (v1.0.0) ===
+[2026-11-25T16:11:31Z] [INFO] Command: nonexistent-command-123
+[2026-11-25T16:11:32Z] [INFO] Attempt 1/3
+[2026-11-25T16:11:32Z] [INFO] Command succeeded on attempt 1

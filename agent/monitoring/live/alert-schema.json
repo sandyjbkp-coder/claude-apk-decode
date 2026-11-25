@@ -1,0 +1,50 @@
+{
+  "schema": "alert-schema",
+  "version": "1.0.0",
+  "description": "Alert schema for agent monitoring: 8 alert definitions with conditions, severity, and actions.",
+  "alerts": [
+    {"id": "A-01", "name": "retry_budget_exhausted", "severity": "HIGH", "condition": "retry_budget_usage >= 100%", "action": "Stop agent; notify user; review retry policy"},
+    {"id": "A-02", "name": "api_rate_limit_hit", "severity": "MEDIUM", "condition": "rate_limit == true", "action": "Back off; check API endpoints; throttle calls"},
+    {"id": "A-03", "name": "repeated_429", "severity": "HIGH", "condition": "429_count > 3 per session", "action": "Investigate rate limiting; apply exponential backoff"},
+    {"id": "A-04", "name": "memory_retrieval_failure", "severity": "MEDIUM", "condition": "memory_retrieval_accuracy < 60%", "action": "Verify memory files; reindex memory index"},
+    {"id": "A-05", "name": "memory_write_failure", "severity": "HIGH", "condition": "memory write operation returned error", "action": "Check disk space; verify memory directory permissions"},
+    {"id": "A-06", "name": "cross_session_recall_failure", "severity": "HIGH", "condition": "cross_session_recall_rate < 60%", "action": "Verify cross-session memory integrity; check session linking"},
+    {"id": "A-07", "name": "command_failure_spike", "severity": "HIGH", "condition": "command_failure_rate > 10 per session", "action": "Investigate command failure patterns; escalate"},
+    {"id": "A-08", "name": "task_failure_spike", "severity": "HIGH", "condition": "task_failure_rate > 10%", "action": "Review failing tasks; fix root causes"}
+  ],
+  "severity_counts": {"HIGH": 6, "MEDIUM": 2, "LOW": 0},
+  "escalation_path": [
+    "Agent logs alert to agent/logs/alerts.jsonl",
+    "agent-status shows active alerts",
+    "HIGH severity: user notification required immediately",
+    "MEDIUM: report on next status check",
+    "LOW: log only, no action needed"
+  ],
+  "evaluation_triggers": [
+    "after every command execution",
+    "at session start and end",
+    "on retry attempt",
+    "on memory read/write",
+    "on API call",
+    "on rate limit event",
+    "on task completion"
+  ],
+  "format": {
+    "timestamp": "ISO8601_UTC",
+    "alert_id": "string (A-01 to A-08)",
+    "name": "string",
+    "severity": "HIGH|MEDIUM|LOW",
+    "condition": "string",
+    "action": "string",
+    "status": "active|acknowledged|resolved|suppressed"
+  },
+  "example": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "alert_id": "A-01",
+    "name": "retry_budget_exhausted",
+    "severity": "HIGH",
+    "condition": "retry_budget_usage >= 100%",
+    "action": "Stop agent; notify user; review retry policy",
+    "status": "active"
+  }
+}

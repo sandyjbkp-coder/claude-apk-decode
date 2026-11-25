@@ -1,0 +1,11 @@
+{"timestamp":"2026-11-25T13:19:33Z","level":"SUCCESS","command":"echo hello","exit_code":0,"detail":"completed"}
+{"timestamp":"2026-11-25T13:19:43Z","level":"SUCCESS","command":"su -c "id" 2>&1; false","exit_code":0,"detail":"completed"}
+{"timestamp":"2026-11-25T13:19:43Z","level":"SUCCESS","command":"nonexistent-command-123","exit_code":0,"detail":"completed"}
+{"timestamp":"2026-11-25T13:20:10Z","level":"FAILURE","command":"nonexistent-command-xyz","exit_code":127,"detail":"WRONG_PATH"}
+{"timestamp":"2026-11-25T13:20:12Z","level":"FAILURE","command":"nonexistent-command-xyz","exit_code":127,"detail":"WRONG_PATH"}
+{"timestamp":"2026-11-25T13:20:14Z","level":"EXHAUSTED","command":"nonexistent-command-xyz","exit_code":1,"detail":"WRONG_PATH"}
+{"timestamp":"2026-11-25T13:21:16Z","level":"SUCCESS","command":"echo test","exit_code":0,"detail":"completed"}
+{"timestamp":"2026-11-25T13:21:17Z","level":"FAILURE","command":"false","exit_code":1,"detail":"UNKNOWN"}
+{"timestamp":"2026-11-25T13:21:18Z","level":"FAILURE","command":"false","exit_code":1,"detail":"UNKNOWN"}
+{"timestamp":"2026-11-25T13:21:21Z","level":"EXHAUSTED","command":"false","exit_code":1,"detail":"UNKNOWN"}
+{"timestamp":"2026-11-25T13:21:25Z","level":"SUCCESS","command":"echo test","exit_code":0,"detail":"completed"}

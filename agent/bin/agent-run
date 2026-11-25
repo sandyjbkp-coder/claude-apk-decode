@@ -1,0 +1,567 @@
+#!/bin/bash
+# agent-run - Root command executor with logging and self-healing retry
+# Part of Android Self-Healing Autonomous Agent (v1.0.0)
+
+AGENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MEMORY_DIR="$AGENT_DIR/memory"
+KNOWLEDGE_DIR="$MEMORY_DIR/knowledge"
+LOGS_DIR="$AGENT_DIR/logs"
+SESSION_FILE="$MEMORY_DIR/sessions/current-session.json"
+COMMAND_LOG="$LOGS_DIR/command-executions.log"
+RETRY_LOG="$LOGS_DIR/retry-attempts.log"
+FIX_LOG="$LOGS_DIR/applied-fixes.log"
+EVENTS_LOG="$LOGS_DIR/events.jsonl"
+METRICS_LOG="$LOGS_DIR/metrics.jsonl"
+ALERTS_LOG="$LOGS_DIR/alerts.jsonl"
+SESSION_START_TIME=""
+
+# Monitoring state files
+MONITORING_DIR="$AGENT_DIR/monitoring/live"
+LOG_SCHEMA_FILE="$MONITORING_DIR/log-schema.json"
+METRIC_SCHEMA_FILE="$MONITORING_DIR/metric-schema.json"
+ALERT_SCHEMA_FILE="$MONITORING_DIR/alert-schema.json"
+
+# Retry budget configuration
+MAX_SESSION_ATTEMPTS=10
+MAX_FAMILY_ATTEMPTS=3
+MAX_ENDPOINT_ATTEMPTS=2
+SESSION_ATTEMPT_COUNT=0
+FAMILY_ATTEMPT_FILE="$MEMORY_DIR/sessions/family-attempts.jsonl"
+ENDPOINT_ATTEMPT_FILE="$MEMORY_DIR/sessions/endpoint-attempts.jsonl"
+
+# Configuration from retry policy
+MAX_ATTEMPTS=3
+BACKOFF_BASE=1
+BACKOFF_MAX=8
+
+# Ensure directories exist
+mkdir -p "$LOGS_DIR" "$MEMORY_DIR/sessions" "$MONITORING_DIR"
+
+# Monitoring: Initialize event/metric/alert logs
+# If logs don't exist, create them with headers
+touch "$EVENTS_LOG" "$METRICS_LOG" "$ALERTS_LOG"
+
+# Load agent ID from environment or generate one
+AGENT_ID="${AGENT_ID:-androidharness-agent-$(date +%s)}"
+
+# Session tracking
+SESSION_ID="${SESSION_ID:-$(date +%s)}"
+
+log() {
+    local level="$1"
+    shift
+    local msg="$*"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    echo "[$ts] [$level] $msg" >> "$LOGS_DIR/agent-session.log"
+}
+
+# --- Log Schema: JSONL emission ---
+
+emit_event() {
+    local event_type="$1"
+    local cmd="$2"
+    local error="$3"
+    local retry_count="$4"
+    local memory_used="$5"
+    local memory_written="$6"
+    local api_call="$7"
+    local rate_limit="$8"
+    local outcome="$9"
+    local latency="${10:-0}"
+    local cost="${11:-0}"
+
+    local task_id="${TASK_ID:-unknown}"
+
+    # Redact sensitive data from command and error
+    local cmd_redacted
+    cmd_redacted=$(echo "$cmd" | sed -e 's/\b[0-9a-fA-F]\{32,\}\b/<REDACTED_HASH>/g' -e 's/\bsupersecret\b/<REDACTED>/g' -e 's/\b[^\s]*@[^\s]*\b/<REDACTED_EMAIL>/g' 2>/dev/null || echo "$cmd")
+    local err_redacted
+    err_redacted=$(echo "$error" | sed -e 's/\b[0-9a-fA-F]\{32,\}\b/<REDACTED_HASH>/g' -e 's/\bsupersecret\b/<REDACTED>/g' -e 's/\b[^\s]*@[^\s]*\b/<REDACTED_EMAIL>/g' 2>/dev/null || echo "$error")
+
+    local entry
+    entry=$(printf '{"timestamp":"%s","session_id":"%s","task_id":"%s","agent_id":"%s","event_type":"%s","command":"%s","error":"%s","retry_count":%s,"memory_used":%s,"memory_written":%s,"api_call":%s,"rate_limit":%s,"outcome":"%s","latency":%s,"cost":%s}' \
+        "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+        "$SESSION_ID" \
+        "$task_id" \
+        "$AGENT_ID" \
+        "$event_type" \
+        "$cmd_redacted" \
+        "$err_redacted" \
+        "$retry_count" \
+        "$memory_used" \
+        "$memory_written" \
+        "$api_call" \
+        "$rate_limit" \
+        "$outcome" \
+        "$latency" \
+        "$cost")
+
+    echo "$entry" >> "$EVENTS_LOG"
+}
+
+emit_metric() {
+    local metric_name="$1"
+    local metric_value="$2"
+
+    printf '{"metric":"%s","value":%s,"timestamp":"%s"}\n' "$metric_name" "$metric_value" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$METRICS_LOG"
+}
+
+emit_alert() {
+    local alert_id="$1"
+    local severity="$2"
+    local message="$3"
+
+    printf '{"alert_id":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' "$alert_id" "$severity" "$message" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$ALERTS_LOG"
+}
+
+# --- Instrumentation Points ---
+
+# IP-01: Session Start - emit at session begin
+emit_session_start() {
+    emit_event "session_start" "" "" 0 0 0 0 0 "started" 0
+    emit_metric "session_start" 1
+}
+
+# IP-02: Memory Load - emit before/after memory retrieval
+emit_memory_load() {
+    local memory_keys="$1"
+    local hit_count="$2"
+    local total_count="$3"
+
+    if [ "$total_count" -gt 0 ]; then
+        local accuracy
+        accuracy=$(echo "scale=0; $hit_count * 100 / $total_count" | bc 2>/dev/null || echo 0)
+        emit_event "memory_load" "$memory_keys" "" 0 "$accuracy" "$accuracy" 0 0 "loaded" 0
+    else
+        emit_event "memory_load" "" "" 0 0 0 0 0 "loaded" 0
+    fi
+    emit_metric "memory_retrieval_accuracy" "$accuracy"
+}
+
+# IP-03: Command Execution - emit before command runs
+emit_command_executed() {
+    local cmd="$1"
+    local attempt="${2:-1}"
+
+    emit_event "command_executed" "$cmd" "" "$attempt" 0 0 0 0 "executing" 0
+}
+
+# IP-04: Error Capture - emit when error is captured
+emit_error_captured() {
+    local cmd="$1"
+    local error_output="$2"
+    local classification="$3"
+
+    emit_event "error_captured" "$cmd" "$error_output" 0 0 0 0 0 "$classification" 0
+}
+
+# IP-05: Retry Attempt - emit before each retry
+emit_retry_attempt() {
+    local attempt="$1"
+    local cmd="$2"
+    local error="$3"
+
+    emit_event "retry_attempt" "$cmd" "$error" "$attempt" 0 0 0 0 "retrying" 0
+    emit_metric "retry_count" "$attempt"
+}
+
+# IP-06: Fix Application - emit when fix is applied
+emit_fix_applied() {
+    local cmd="$1"
+    local fix="$2"
+    local result="$3"
+
+    emit_event "fix_applied" "$cmd" "$fix" 0 0 0 0 0 "applied" 0
+    emit_metric "fix_reuse_rate" "0"
+}
+
+# IP-07: Memory Write - emit when memory is written
+emit_memory_write() {
+    local key="$1"
+    local value="$2"
+
+    emit_event "memory_write" "" "$key" 0 "$value" "$value" 0 0 "written" 0
+    emit_metric "memory_write_count" "1"
+}
+
+# IP-08: API Call - emit when external API is called
+emit_api_call() {
+    local api_endpoint="$1"
+    local api_outcome="$2"
+    local latency_ms="${3:-0}"
+
+    emit_event "api_call" "$api_endpoint" "" 0 0 0 1 "$api_outcome" "called" "$latency_ms"
+    emit_metric "api_call_count" "1"
+}
+
+# IP-09: Rate Limit Event - emit when 429/rate limit received
+emit_rate_limit_event() {
+    local api_endpoint="$1"
+    local retry_after="${2:-0}"
+
+    emit_event "rate_limit_event" "$api_endpoint" "" 0 0 0 1 "rate_limited" "$retry_after"
+    emit_metric "rate_limit_hits" "1"
+}
+
+# IP-10: Task Completion - emit when task finishes
+emit_task_completed() {
+    local outcome="$1"
+    local latency="${2:-0}"
+    local cost="${3:-0}"
+
+    emit_event "task_completed" "" "" 0 0 0 0 "$outcome" "$outcome" "$latency" "$cost"
+    emit_metric "task_success_rate" "1"
+    emit_metric "task_failure_rate" "0"
+}
+
+# --- Original Functions ---
+
+log_json() {
+    local level="$1"
+    local cmd="$2"
+    local exit_code="$3"
+    local detail="$4"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    printf '{"timestamp":"%s","level":"%s","command":"%s","exit_code":%s,"detail":"%s"}\n' \
+        "$ts" "$level" "$cmd" "$exit_code" "$detail" >> "$COMMAND_LOG"
+    
+    # Enforce per-command signature budget (3 attempts max)
+    enforce_cmd_budget "$cmd"
+}
+
+enforce_cmd_budget() {
+    local cmd="$1"
+    SESSION_ATTEMPT_COUNT=$((SESSION_ATTEMPT_COUNT + 1))
+    if [ "$SESSION_ATTEMPT_COUNT" -gt "$MAX_SESSION_ATTEMPTS" ]; then
+        log "ERROR" "Session budget exceeded ($SESSION_ATTEMPT_COUNT > $MAX_SESSION_ATTEMPTS)"
+        exit 1
+    fi
+}
+
+enforce_family_budget() {
+    local family_key="$1"
+    local count
+    count=$(grep -c "$family_key" "$FAMILY_ATTEMPT_FILE" 2>/dev/null || echo 0)
+    if [ "$count" -ge "$MAX_FAMILY_ATTEMPTS" ]; then
+        log "ERROR" "Family budget exceeded for $family_key ($count >= $MAX_FAMILY_ATTEMPTS)"
+        exit 1
+    fi
+    echo "$family_key" >> "$FAMILY_ATTEMPT_FILE"
+}
+
+enforce_endpoint_budget() {
+    local endpoint_key="$1"
+    local count
+    count=$(grep -c "$endpoint_key" "$ENDPOINT_ATTEMPT_FILE" 2>/dev/null || echo 0)
+    if [ "$count" -ge "$MAX_ENDPOINT_ATTEMPTS" ]; then
+        log "ERROR" "Endpoint budget exceeded for $endpoint_key ($count >= $MAX_ENDPOINT_ATTEMPTS)"
+        exit 1
+    fi
+    echo "$endpoint_key" >> "$ENDPOINT_ATTEMPT_FILE"
+}
+
+log_retry() {
+    local attempt="$1"
+    local cmd="$2"
+    local classification="$3"
+    local action="$4"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    printf '{"timestamp":"%s","attempt":%s,"command":"%s","classification":"%s","action":"%s"}\n' \
+        "$ts" "$attempt" "$cmd" "$classification" "$action" >> "$RETRY_LOG"
+}
+
+log_fix() {
+    local cmd="$1"
+    local fix="$2"
+    local result="$3"
+    local ts
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    printf '{"timestamp":"%s","command":"%s","fix":"%s","result":"%s"}\n' \
+        "$ts" "$cmd" "$fix" "$result" >> "$FIX_LOG"
+}
+
+# Classify a failure based on error output
+classify_failure() {
+    local error_output="$1"
+    local cmd="$2"
+    local lower
+    lower=$(echo "$error_output" | tr '[:upper:]' '[:lower:]')
+
+    if echo "$lower" | grep -q "permission denied\|eacces\|operation not permitted"; then
+        echo "PERMISSION"
+    elif echo "$lower" | grep -q "not found\|no such file\|command not found"; then
+        echo "WRONG_PATH"
+    elif echo "$lower" | grep -q "syntax error\|unexpected\|invalid.*option"; then
+        echo "WRONG_SYNTAX"
+    elif echo "$lower" | grep -q "timeout\|timed out\|deadline"; then
+        echo "TIMEOUT"
+    elif echo "$lower" | grep -q "network\|connection refused\|unreachable\|dns"; then
+        echo "NETWORK"
+    elif echo "$lower" | grep -q "429\|rate limit\|too many requests"; then
+        echo "RATE_LIMIT"
+    elif echo "$lower" | grep -q "401\|403\|unauthorized\|forbidden"; then
+        echo "PERMISSION"
+    elif echo "$lower" | grep -q "missing\|dependency\|library not found\|shared object"; then
+        echo "MISSING_DEPENDENCY"
+    elif echo "$lower" | grep -q "config\|invalid.*config\|malformed"; then
+        echo "CONFIGURATION"
+    elif echo "$lower" | grep -q "validation\|invalid.*arg\|bad.*argument"; then
+        echo "VALIDATION"
+    elif [ "$exit_code" -eq 0 ] 2>/dev/null; then
+        echo "TRANSIENT"
+    else
+        echo "UNKNOWN"
+    fi
+}
+
+# Exponential backoff with jitter
+backoff_sleep() {
+    local attempt="$1"
+    local classification="$2"
+    local delay_ms
+    delay_ms=$(compute_delay "$classification" "$last_error" "$attempt")
+    
+    # Cap at 30 seconds max
+    if [ "$delay_ms" -gt 30000 ]; then
+        delay_ms=30000
+    fi
+    
+    # Convert to seconds for sleep (integer only)
+    local delay_s
+    delay_s=$(( delay_ms / 1000 ))
+    [ "$delay_s" -eq 0 ] && delay_s=1
+    
+    # Sleep for the delay
+    sleep "$delay_s"
+}
+
+# Header-aware delay parsing
+compute_delay() {
+    local classification="$1"
+    local output="$2"
+    local attempt="$3"
+    local delay_ms=0
+    
+    if [ "$classification" = "RATE_LIMIT" ] || [ "$classification" = "NETWORK" ]; then
+        # Try Retry-After header (delta-seconds format, numeric)
+        local retry_after
+        retry_after=$(echo "$output" | grep -oiP 'retry-after-\w*:\s*\K[0-9]+' | head -1)
+        if [ -n "$retry_after" ]; then
+            delay_ms=$((retry_after * 1000))
+        else
+            # Try Retry-After as HTTP-date or delta-seconds
+            local ra_header
+            ra_header=$(echo "$output" | grep -oiP 'Retry-After:\s*\K.+' | head -1)
+            if [ -n "$ra_header" ]; then
+                # Check if it's a numeric delta-seconds
+                if echo "$ra_header" | grep -qP '^\d+$'; then
+                    delay_ms=$((ra_header * 1000))
+                else
+                    # Could be HTTP-date, fall back to backoff
+                    delay_ms=$(( BACKOFF_BASE * 1000 * attempt ))
+                fi
+            else
+                # Try x-ratelimit-reset (Unix timestamp)
+                local ratelimit_reset
+                ratelimit_reset=$(echo "$output" | grep -oiP 'x-ratelimit-reset:\s*\K[0-9]+' | head -1)
+                if [ -n "$ratelimit_reset" ]; then
+                    local now
+                    now=$(date +%s)
+                    if [ "$ratelimit_reset" -gt "$now" ]; then
+                        delay_ms=$(( (ratelimit_reset - now) * 1000 ))
+                    fi
+                else
+                    # Fall back to exponential backoff with jitter
+                    delay_ms=$(( BACKOFF_BASE * 1000 * (2 ** (attempt - 1)) + RANDOM % 1000 ))
+                fi
+            fi
+        fi
+    else
+        # Non-rate-limit: exponential backoff with jitter
+        delay_ms=$(( BACKOFF_BASE * 1000 * (2 ** (attempt - 1)) + RANDOM % 1000 ))
+    fi
+    
+    echo "$delay_ms"
+}
+
+# Check retry budget
+check_budget() {
+    local cmd="$1"
+    local attempts_so_far="$2"
+    if [ "$attempts_so_far" -ge "$MAX_ATTEMPTS" ]; then
+        echo "BUDGET_EXCEEDED"
+        return 1
+    fi
+    echo "OK"
+    return 0
+}
+
+# Search memory for similar failures
+search_memory() {
+    local error_pattern="$1"
+    local found=0
+    if [ -f "$KNOWLEDGE_DIR/failure-patterns.md" ]; then
+        if grep -qi "$error_pattern" "$KNOWLEDGE_DIR/failure-patterns.md" 2>/dev/null; then
+            log "INFO" "Found matching failure pattern in memory"
+            found=1
+        fi
+    fi
+    if [ -f "$KNOWLEDGE_DIR/command-repair-playbook.md" ]; then
+        if grep -qi "$error_pattern" "$KNOWLEDGE_DIR/command-repair-playbook.md" 2>/dev/null; then
+            log "INFO" "Found matching repair in playbook"
+            found=1
+        fi
+    fi
+    echo "$found"
+}
+
+# Apply a fix from the repair playbook
+apply_fix() {
+    local cmd="$1"
+    local classification="$2"
+    local fix_applied="none"
+    local result="not_attempted"
+
+    if [ -f "$KNOWLEDGE_DIR/command-repair-playbook.md" ]; then
+        local fix_hint
+        fix_hint=$(grep -i "$classification" "$KNOWLEDGE_DIR/command-repair-playbook.md" | head -5)
+        if [ -n "$fix_hint" ]; then
+            log "INFO" "Applying fix from playbook for $classification"
+            fix_applied="playbook_match: $classification"
+            result="applied"
+        fi
+    fi
+
+    log_fix "$cmd" "$fix_applied" "$result"
+    echo "$fix_applied"
+}
+
+# Execute command with root via KernelSU
+execute_root() {
+    local cmd="$1"
+    # Try KernelSU first, fall back to su
+    if command -v su >/dev/null 2>&1; then
+        su -c "$cmd" 2>&1
+    else
+        echo "ERROR: No root shell (su) available" >&2
+        return 127
+    fi
+}
+
+# Check alert conditions
+check_alert_conditions() {
+    local alert_id="$1"
+    local value="$2"
+    local threshold="$3"
+    local severity="$4"
+
+    if [ -n "$threshold" ]; then
+        if [ "$value" -ge "$threshold" ] 2>/dev/null; then
+            emit_alert "$alert_id" "$severity" "Alert triggered: $alert_id (value=$value, threshold=$threshold)"
+        fi
+    fi
+}
+
+# Main execution with self-healing retry
+main() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: $0 <command>"
+        echo "Example: $0 'pm list packages | head -20'"
+        exit 1
+    fi
+
+    local original_cmd="$*"
+    local attempt=0
+    local success=0
+    local last_error=""
+    local classification="UNKNOWN"
+    TASK_ID="${TASK_ID:-agent-session}"
+
+    # Emit session start instrumentation (IP-01)
+    emit_session_start
+
+    log "INFO" "=== agent-run (v1.0.0) ==="
+    log "INFO" "Command: $original_cmd"
+
+    # Pre-execution: check memory for known failures
+    local mem_found
+    mem_found=$(search_memory "$original_cmd")
+    if [ "$mem_found" -eq 1 ]; then
+        log "INFO" "Memory match found — will use corrected command if available"
+    fi
+
+    while [ "$attempt" -lt "$MAX_ATTEMPTS" ]; do
+        attempt=$((attempt + 1))
+        log "INFO" "Attempt $attempt/$MAX_ATTEMPTS"
+
+        # Emit command execution instrumentation (IP-03)
+        emit_command_executed "$original_cmd" "$attempt"
+
+        # Check retry budget
+        if ! check_budget "$original_cmd" "$attempt"; then
+            log "ERROR" "Retry budget exceeded for: $original_cmd"
+            emit_alert "retry_budget_exhausted" "HIGH" "Session budget exhausted after $attempt attempts"
+            break
+        fi
+
+        # Execute the command
+        local output
+        local exit_code=0
+        output=$(execute_root "$original_cmd" 2>&1) || exit_code=$?
+        local output_exit=$?
+
+        if [ "$exit_code" -eq 0 ] || [ "$output_exit" -eq 0 ]; then
+            log "INFO" "Command succeeded on attempt $attempt"
+            success=1
+            
+            # Emit task completed on success
+            emit_task_completed "success" "$((SECONDS * 1000))" "0"
+            break
+        fi
+
+        last_error="$output"
+        classification=$(classify_failure "$output" "$original_cmd")
+
+        # Emit error capture instrumentation (IP-04)
+        emit_error_captured "$original_cmd" "$last_error" "$classification"
+
+        log "WARN" "Attempt $attempt failed (exit $exit_code): classified as $classification"
+        log_json "FAILURE" "$original_cmd" "$exit_code" "$classification"
+        log_retry "$attempt" "$original_cmd" "$classification" "retry_planned"
+
+        # Emit retry attempt instrumentation (IP-05)
+        if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+            emit_retry_attempt "$attempt" "$original_cmd" "$last_error"
+
+            # Self-healing: search memory and apply fix
+            log "INFO" "Searching memory for fix..."
+            local fix
+            fix=$(apply_fix "$original_cmd" "$classification")
+            log "INFO" "Fix applied: $fix"
+
+            # Backoff before retry
+            backoff_sleep "$attempt" "$classification"
+        fi
+    done
+
+    if [ "$success" -eq 0 ]; then
+        log "ERROR" "Command failed after $MAX_ATTEMPTS attempts: $original_cmd"
+        log "ERROR" "Last error: $last_error"
+        log_json "EXHAUSTED" "$original_cmd" 1 "$classification"
+        
+        # Emit retry budget exhausted on failure
+        emit_alert "retry_budget_exhausted" "HIGH" "Command failed after $MAX_ATTEMPTS attempts"
+        
+        # Emit task completion on failure
+        emit_task_completed "failure" "$((SECONDS * 1000))" "0"
+        
+        echo "ERROR: Command failed after $MAX_ATTEMPTS attempts" >&2
+        echo "$last_error" >&2
+        exit 1
+    fi
+}
+
+main "$@"

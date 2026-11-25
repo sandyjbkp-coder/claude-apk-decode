@@ -1,0 +1,41 @@
+{
+  "schema": "metric-schema",
+  "version": "1.0.0",
+  "description": "Metric schema for agent monitoring: 16 metrics across task, API, memory, command, cost, and latency domains.",
+  "metrics": [
+    {"id": "M-01", "name": "task_success_rate", "type": "gauge", "target": ">= 95%", "alert_threshold": "< 90%", "domain": "task", "unit": "percent"},
+    {"id": "M-02", "name": "task_failure_rate", "type": "gauge", "target": "0%", "alert_threshold": "> 10%", "domain": "task", "unit": "percent"},
+    {"id": "M-03", "name": "retry_count", "type": "counter", "target": "minimal", "alert_threshold": ">= retry budget", "domain": "command", "unit": "count"},
+    {"id": "M-04", "name": "retry_budget_usage", "type": "gauge", "target": "< 80%", "alert_threshold": ">= 100%", "domain": "command", "unit": "percent"},
+    {"id": "M-05", "name": "api_call_count", "type": "counter", "target": "-", "alert_threshold": "-", "domain": "api", "unit": "count"},
+    {"id": "M-06", "name": "rate_limit_hits", "type": "counter", "target": "0", "alert_threshold": "> 0", "domain": "api", "unit": "count"},
+    {"id": "M-07", "name": "429_count", "type": "counter", "target": "0", "alert_threshold": "> 0", "domain": "api", "unit": "count"},
+    {"id": "M-08", "name": "timeout_count", "type": "counter", "target": "0", "alert_threshold": "> 0", "domain": "api", "unit": "count"},
+    {"id": "M-09", "name": "memory_retrieval_accuracy", "type": "gauge", "target": ">= 80%", "alert_threshold": "< 60%", "domain": "memory", "unit": "percent"},
+    {"id": "M-10", "name": "memory_write_count", "type": "counter", "target": "-", "alert_threshold": "-", "domain": "memory", "unit": "count"},
+    {"id": "M-11", "name": "cross_session_recall_rate", "type": "gauge", "target": ">= 80%", "alert_threshold": "< 60%", "domain": "memory", "unit": "percent"},
+    {"id": "M-12", "name": "fix_reuse_rate", "type": "gauge", "target": ">= 50%", "alert_threshold": "< 30%", "domain": "task", "unit": "percent"},
+    {"id": "M-13", "name": "command_failure_rate", "type": "gauge", "target": "0%", "alert_threshold": "> 10 per session", "domain": "command", "unit": "percent"},
+    {"id": "M-14", "name": "tool_usage_rate", "type": "gauge", "target": "-", "alert_threshold": "-", "domain": "command", "unit": "percent"},
+    {"id": "M-15", "name": "latency", "type": "histogram", "target": "< 500ms", "alert_threshold": "> 2000ms", "domain": "api", "unit": "milliseconds"},
+    {"id": "M-16", "name": "cost", "type": "counter", "target": "minimal", "alert_threshold": "-", "domain": "cost", "unit": "currency"}
+  ],
+  "format": {
+    "timestamp": "ISO8601_UTC",
+    "metric_id": "string (M-01 to M-16)",
+    "name": "string",
+    "value": "number",
+    "type": "counter|gauge|histogram",
+    "domain": "task|api|memory|command|cost",
+    "unit": "string"
+  },
+  "example": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "metric_id": "M-01",
+    "name": "task_success_rate",
+    "value": 95.5,
+    "type": "gauge",
+    "domain": "task",
+    "unit": "percent"
+  }
+}
